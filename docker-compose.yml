@@ -1,0 +1,51 @@
+services:
+  # Next.js Fullstack Web Application
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-pk_test_c3dlZXQtY3Jvdy0xNzM5LmNsZXJrLmFjY291bnRzLmRldiQ}
+        NEXT_PUBLIC_CARTO_API_KEY: ${NEXT_PUBLIC_CARTO_API_KEY:-cb1_57j5_1_c3af903d4cb7914d24de0e6d}
+    container_name: safestride-web
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./web/.env.local
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - PATHFINDER_URL=http://pathfinder:8000
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      pathfinder:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - safestride-net
+
+  # Python FastAPI Multi-Objective A* Microservice
+  pathfinder:
+    build:
+      context: ./pathfinder
+      dockerfile: Dockerfile
+    container_name: safestride-pathfinder
+    ports:
+      - "8001:8000"
+    environment:
+      - PORT=8000
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - safestride-net
+
+networks:
+  safestride-net:
+    driver: bridge

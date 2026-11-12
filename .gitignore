@@ -1,0 +1,54 @@
+# Environment & Secrets (NEVER COMMIT)
+.env
+.env*.local
+.env.local
+.env.production
+.env.development
+*.local
+
+# Node & Next.js
+node_modules/
+*/node_modules/
+.next/
+*/.next/
+out/
+build/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Python
+__pycache__/
+*/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Neon CLI & Database local state
+.neon
+.neon/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Docker
+*.docker.log
