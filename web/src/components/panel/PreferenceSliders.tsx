@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useMapStore } from '@/store/map-store';
-import { Shield, Zap, RefreshCw, Navigation } from 'lucide-react';
+import { Shield, Zap, RefreshCw, Navigation, Accessibility, Volume2, Eye } from 'lucide-react';
 
 export const PreferenceSliders: React.FC = () => {
   const {
@@ -10,10 +10,15 @@ export const PreferenceSliders: React.FC = () => {
     safetyStrictness,
     isRoundTrip,
     targetDistanceKm,
+    wheelchairAccessible,
+    highContrast,
     setEffortTolerance,
     setSafetyStrictness,
     setIsRoundTrip,
     setTargetDistanceKm,
+    setWheelchairAccessible,
+    setHighContrast,
+    speakRouteSummary,
     fetchRoute,
   } = useMapStore();
 
@@ -147,6 +152,90 @@ export const PreferenceSliders: React.FC = () => {
             onTouchEnd={() => fetchRoute()}
             className="w-full accent-dark-accent h-2 bg-zinc-800 rounded-lg cursor-pointer"
           />
+        </div>
+      </div>
+
+      {/* Accessibility & Inclusivity Mode */}
+      <div className="p-3.5 rounded-2xl bg-dark-surface/60 border border-dark-border/40 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Accessibility className="w-4 h-4 text-cyan-400" />
+            <span className="font-ui text-xs font-semibold text-white">
+              Accessibility & Inclusivity
+            </span>
+          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-cyan-950/60 border border-cyan-800/40 text-cyan-300">
+            A11y
+          </span>
+        </div>
+
+        {/* Step-Free & Wheelchair Friendly Toggle */}
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/70 border border-dark-border/40">
+          <div>
+            <span className="text-xs font-ui font-medium text-dark-metricText block">
+              Step-Free & Wheelchair Mode
+            </span>
+            <span className="text-[10px] font-ui text-dark-labelText">
+              Caps grade to &lt;6%, avoids stairs & unpaved paths
+            </span>
+          </div>
+          <button
+            onClick={() => setWheelchairAccessible(!wheelchairAccessible)}
+            aria-pressed={wheelchairAccessible}
+            aria-label="Toggle step-free and wheelchair friendly routing"
+            className={`px-3 py-1.5 rounded-lg text-xs font-ui font-semibold transition-all cursor-pointer ${
+              wheelchairAccessible
+                ? 'bg-cyan-400 text-black shadow-md shadow-cyan-950'
+                : 'bg-zinc-900 border border-zinc-700 text-dark-labelText hover:text-white'
+            }`}
+          >
+            {wheelchairAccessible ? 'Active' : 'Off'}
+          </button>
+        </div>
+
+        {/* Voice Route Narration Button */}
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/70 border border-dark-border/40">
+          <div>
+            <span className="text-xs font-ui font-medium text-dark-metricText block">
+              Audio Route Narration
+            </span>
+            <span className="text-[10px] font-ui text-dark-labelText">
+              Read aloud distance, time, and safety alerts
+            </span>
+          </div>
+          <button
+            onClick={() => speakRouteSummary()}
+            aria-label="Read route summary aloud"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-ui font-semibold bg-dark-accent/15 border border-dark-accent/40 text-dark-accent hover:bg-dark-accent/25 transition-all cursor-pointer"
+          >
+            <Volume2 className="w-3.5 h-3.5" />
+            Listen
+          </button>
+        </div>
+
+        {/* High Contrast View */}
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/70 border border-dark-border/40">
+          <div>
+            <span className="text-xs font-ui font-medium text-dark-metricText block">
+              Enhanced Contrast Mode
+            </span>
+            <span className="text-[10px] font-ui text-dark-labelText">
+              High-contrast borders & bold indicators
+            </span>
+          </div>
+          <button
+            onClick={() => setHighContrast(!highContrast)}
+            aria-pressed={highContrast}
+            aria-label="Toggle high contrast accessibility view"
+            className={`px-3 py-1.5 rounded-lg text-xs font-ui font-semibold transition-all cursor-pointer ${
+              highContrast
+                ? 'bg-yellow-400 text-black shadow-md'
+                : 'bg-zinc-900 border border-zinc-700 text-dark-labelText hover:text-white'
+            }`}
+          >
+            <Eye className="w-3.5 h-3.5 inline mr-1" />
+            {highContrast ? 'On' : 'Off'}
+          </button>
         </div>
       </div>
     </div>

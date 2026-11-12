@@ -54,6 +54,13 @@ interface MapState {
   userLocationName: string;
   setUserLocation: (coords: [number, number], name?: string) => void;
 
+  // Accessibility & Inclusivity
+  wheelchairAccessible: boolean;
+  highContrast: boolean;
+  setWheelchairAccessible: (val: boolean) => void;
+  setHighContrast: (val: boolean) => void;
+  speakRouteSummary: () => void;
+
   // Onboarding & Preferences
   isOnboardingOpen: boolean;
   setIsOnboardingOpen: (open: boolean) => void;
@@ -83,7 +90,34 @@ export const useMapStore = create<MapState>((set, get) => ({
   safetyStrictness: 0.85,
   targetDistanceKm: 5.0,
   isRoundTrip: true,
-  userPaceMinPerKm: 5.5, // 5:30 min/km default
+  userPaceMinPerKm: 5.5,
+
+  // Accessibility defaults
+  wheelchairAccessible: false,
+  highContrast: false,
+  setWheelchairAccessible: (val) => {
+    set({ wheelchairAccessible: val });
+    get().fetchRoute();
+  },
+  setHighContrast: (val) => set({ highContrast: val }),
+
+  speakRouteSummary: () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const { distanceKm, estDurationMin, elevationGainM, hazards, wheelchairAccessible, userLocationName } = get();
+    if (distanceKm <= 0) {
+      const u = new SpeechSynthesisUtterance('No route planned yet. Choose a start location to plan your route.');
+      window.speechSynthesis.speak(u);
+      return;
+    }
+    const accessText = wheelchairAccessible
+      ? 'This route is optimized for step-free access and minimal incline.'
+      : '';
+    const text = `Route planned: ${distanceKm} kilometers, estimated active time of ${Math.round(estDurationMin)} minutes with ${Math.round(elevationGainM)} meters of ascent. ${hazards.length} caution segments noted. ${accessText}`;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    window.speechSynthesis.speak(utterance);
+  }, // 5:30 min/km default
 
   distanceKm: 0,
   elevationGainM: 0,
@@ -236,7 +270,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   setActiveHazardId: (id) => set({ activeHazardId: id }),
 
   fetchRoute: async () => {
-    const { waypoints, effortTolerance, safetyStrictness, isRoundTrip, targetDistanceKm, userPaceMinPerKm } = get();
+    const { waypoints, effortTolerance, safetyStrictness, isRoundTrip, targetDistanceKm, userPaceMinPerKm, wheelchairAccessible } = get();
     if (waypoints.length === 0) return;
     if (!isRoundTrip && waypoints.length < 2) return;
 
@@ -247,10 +281,11 @@ export const useMapStore = create<MapState>((set, get) => ({
         startCoords: waypoints[0],
         endCoords: isRoundTrip ? waypoints[0] : waypoints[waypoints.length - 1],
         waypoints,
-        effortTolerance,
-        safetyStrictness,
+        effortTolerance: wheelchairAccessible ? 0.2 : effortTolerance,
+        safetyStrictness: wheelchairAccessible ? 0.95 : safetyStrictness,
         targetDistanceKm: targetDistanceKm || 5.0,
         isRoundTrip,
+        wheelchairAccessible,
       };
 
       const res = await fetch('/api/routes/plan', {

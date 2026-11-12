@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Moon, Footprints, ShieldAlert, X } from 'lucide-react';
+import { AlertTriangle, Moon, Footprints, ShieldAlert, X, Accessibility, Mountain } from 'lucide-react';
 import { Hazard } from '@/contracts/route';
 
 interface HazardMarkerProps {
@@ -24,6 +24,11 @@ export const HazardMarker: React.FC<HazardMarkerProps> = ({
         return <Moon className="w-3.5 h-3.5 text-amber-400" />;
       case 'no_sidewalk':
         return <Footprints className="w-3.5 h-3.5 text-rose-400" />;
+      case 'steep_incline':
+        return <Mountain className="w-3.5 h-3.5 text-cyan-400" />;
+      case 'stairs':
+      case 'curb':
+        return <Accessibility className="w-3.5 h-3.5 text-cyan-400" />;
       default:
         return <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />;
     }
@@ -35,6 +40,10 @@ export const HazardMarker: React.FC<HazardMarkerProps> = ({
         return 'bg-amber-500/20 border-amber-500/40 text-amber-300';
       case 'no_sidewalk':
         return 'bg-rose-500/20 border-rose-500/40 text-rose-300';
+      case 'steep_incline':
+      case 'stairs':
+      case 'curb':
+        return 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300';
       default:
         return 'bg-orange-500/20 border-orange-500/40 text-orange-300';
     }

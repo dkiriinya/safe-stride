@@ -8,6 +8,7 @@ export const RouteRequestSchema = z.object({
   safetyStrictness: z.number().min(0).max(1), // beta multiplier
   targetDistanceKm: z.number().optional(), // for loop generation
   isRoundTrip: z.boolean().optional(),
+  wheelchairAccessible: z.boolean().optional(), // Step-free, curb cuts, max 6% grade
 });
 
 export type RouteRequest = z.infer<typeof RouteRequestSchema>;
@@ -26,7 +27,7 @@ export const HazardSchema = z.object({
   coord: z.tuple([z.number(), z.number()]), // [lat, lng]
   distanceKm: z.number(),
   lengthM: z.number(),
-  kind: z.enum(['unlit', 'no_sidewalk', 'high_speed']),
+  kind: z.enum(['unlit', 'no_sidewalk', 'high_speed', 'steep_incline', 'stairs', 'curb']),
   description: z.string(),
 });
 

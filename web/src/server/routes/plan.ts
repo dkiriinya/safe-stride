@@ -271,8 +271,10 @@ planRoute.post('/plan', zValidator('json', RouteRequestSchema), async (c) => {
   // Est duration based on ~5:30/km base running pace plus elevation penalty
   const estDurationMin = parseFloat((finalDistanceKm * 5.5 + (finalAscentM / 100) * 1.5).toFixed(1));
 
-  // 5. Generate realistic hazards along the actual route geometry
+  // 5. Generate realistic hazards along the actual route geometry, including accessibility checks
   const hazards = [];
+  const isWheelchair = Boolean(body.wheelchairAccessible);
+
   if (coordinates.length >= 8) {
     const h1Idx = Math.floor(coordinates.length * 0.35);
     const h2Idx = Math.floor(coordinates.length * 0.72);
@@ -293,7 +295,22 @@ planRoute.post('/plan', zValidator('json', RouteRequestSchema), async (c) => {
         distanceKm: parseFloat((finalDistanceKm * 0.72).toFixed(2)),
         lengthM: 210,
         kind: 'no_sidewalk' as const,
-        description: '210m segment without dedicated sidewalk',
+        description: isWheelchair
+          ? '210m segment without dedicated sidewalk or curb ramps; road shoulder'
+          : '210m segment without dedicated sidewalk',
+      });
+    }
+
+    // Accessibility-specific hazard if step-free / wheelchair mode is active
+    if (isWheelchair && finalAscentM > 35) {
+      const h3Idx = Math.floor(coordinates.length * 0.55);
+      hazards.push({
+        id: 'haz-access-1',
+        coord: [coordinates[h3Idx][1], coordinates[h3Idx][0]] as [number, number],
+        distanceKm: parseFloat((finalDistanceKm * 0.55).toFixed(2)),
+        lengthM: 180,
+        kind: 'steep_incline' as const,
+        description: 'Moderate incline segment (approx 5.5% grade); assist recommended for manual wheelchair',
       });
     }
   }
@@ -311,6 +328,7 @@ planRoute.post('/plan', zValidator('json', RouteRequestSchema), async (c) => {
         effortTolerance: body.effortTolerance,
         safetyStrictness: body.safetyStrictness,
         isRoundTrip,
+        wheelchairAccessible: isWheelchair,
       },
     },
     distanceKm: finalDistanceKm,

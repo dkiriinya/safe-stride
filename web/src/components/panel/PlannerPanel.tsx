@@ -17,6 +17,8 @@ import {
   BookmarkCheck,
   RotateCcw,
   Sparkles,
+  Volume2,
+  Accessibility,
 } from 'lucide-react';
 
 interface PlannerPanelProps {
@@ -37,6 +39,8 @@ export const PlannerPanel: React.FC<PlannerPanelProps> = ({ theme = 'dark' }) =>
     setUserPaceMinPerKm,
     targetDistanceKm,
     isRoundTrip,
+    wheelchairAccessible,
+    speakRouteSummary,
     fetchRoute,
     clearWaypoints,
   } = useMapStore();
@@ -102,12 +106,19 @@ export const PlannerPanel: React.FC<PlannerPanelProps> = ({ theme = 'dark' }) =>
         {/* TAB 1: SUMMARY */}
         {activeTab === 'summary' && (
           <div className="space-y-4">
-            {/* Top high-impact metric banner */}
+            {/* Top high-impact metric banner with accessibility support */}
             <div className="p-4 rounded-3xl bg-zinc-950/70 border border-dark-border/50 flex items-center justify-between">
               <div>
-                <span className="font-ui text-xs text-dark-labelText block mb-0.5">
-                  {waypoints.length >= 2 || (isRoundTrip && waypoints.length >= 1) ? 'Planned Route' : 'Set Start Location'}
-                </span>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="font-ui text-xs text-dark-labelText">
+                    {waypoints.length >= 2 || (isRoundTrip && waypoints.length >= 1) ? 'Planned Route' : 'Set Start Location'}
+                  </span>
+                  {wheelchairAccessible && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-cyan-950/70 border border-cyan-700/50 text-[10px] text-cyan-300 font-medium">
+                      <Accessibility className="w-3 h-3" /> Step-Free
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-baseline gap-1.5">
                   <span className="font-display font-extrabold text-3xl text-dark-metricText tracking-tight">
                     {distanceKm > 0 ? distanceKm : '0.00'}
@@ -118,11 +129,22 @@ export const PlannerPanel: React.FC<PlannerPanelProps> = ({ theme = 'dark' }) =>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
+                {distanceKm > 0 && (
+                  <button
+                    onClick={() => speakRouteSummary()}
+                    className="p-2.5 rounded-2xl bg-cyan-950/40 border border-cyan-800/40 text-cyan-300 hover:bg-cyan-900/50 transition-all text-xs cursor-pointer"
+                    title="Read route details aloud (Text-to-Speech)"
+                    aria-label="Listen to route description aloud"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </button>
+                )}
                 {waypoints.length > 0 && (
                   <button
                     onClick={() => clearWaypoints()}
                     className="p-2 rounded-2xl bg-zinc-900 border border-zinc-800 text-rose-400 hover:bg-rose-500/10 transition-all text-xs cursor-pointer"
                     title="Clear route and start fresh"
+                    aria-label="Clear route"
                   >
                     Clear
                   </button>
@@ -132,10 +154,18 @@ export const PlannerPanel: React.FC<PlannerPanelProps> = ({ theme = 'dark' }) =>
                   disabled={isLoadingRoute || waypoints.length === 0}
                   className="p-2.5 rounded-2xl bg-dark-accent/15 border border-dark-accent/40 text-dark-accent hover:bg-dark-accent/25 transition-all disabled:opacity-40 cursor-pointer"
                   title="Recalculate route"
+                  aria-label="Recalculate route"
                 >
                   <RotateCcw className={`w-4 h-4 ${isLoadingRoute ? 'animate-spin' : ''}`} />
                 </button>
               </div>
+            </div>
+
+            {/* Accessible screen reader announcement region */}
+            <div className="sr-only" role="status" aria-live="polite">
+              {distanceKm > 0
+                ? `Route calculated. Total distance ${distanceKm} kilometers with ${elevationGainM} meters ascent.`
+                : 'No route planned.'}
             </div>
 
             {/* 6-Metric 2-Column Grid with SVG Glyphs */}
