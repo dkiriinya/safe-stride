@@ -9,7 +9,7 @@ WORKDIR /app
 RUN corepack enable pnpm
 
 COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # 2. Build application
 FROM base AS builder
@@ -34,7 +34,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
+ENV PORT=3050
 ENV HOSTNAME="0.0.0.0"
 
 RUN addgroup --system --gid 1001 nodejs
@@ -48,6 +48,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 
 USER nextjs
 
-EXPOSE 3000
+EXPOSE 3050
 
-CMD ["node_modules/.bin/next", "start", "-p", "3000"]
+CMD ["node_modules/.bin/next", "start", "-p", "3050"]

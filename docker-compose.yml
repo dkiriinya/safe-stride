@@ -1,5 +1,5 @@
 services:
-  # Next.js Fullstack Web Application
+  # Next.js Fullstack Web Application (SafeStride)
   web:
     build:
       context: ./web
@@ -9,12 +9,12 @@ services:
         NEXT_PUBLIC_CARTO_API_KEY: ${NEXT_PUBLIC_CARTO_API_KEY:-cb1_57j5_1_c3af903d4cb7914d24de0e6d}
     container_name: safestride-web
     ports:
-      - "3000:3000"
+      - "3050:3050"
     env_file:
       - ./web/.env.local
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=3050
       - PATHFINDER_URL=http://pathfinder:8000
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
@@ -32,7 +32,7 @@ services:
       dockerfile: Dockerfile
     container_name: safestride-pathfinder
     ports:
-      - "8001:8000"
+      - "8050:8000"
     environment:
       - PORT=8000
       - LOG_LEVEL=info
