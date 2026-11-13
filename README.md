@@ -7,16 +7,33 @@
 
 ## ✨ Features
 
-- **🤖 AI Route Assistant**: Type what you want in plain English (e.g., *"5k recovery run at 8pm, keep it flat and lit"*, or click presets like *Night Safe*, *Hill Workout*, *5K Tempo*). Powered by OpenRouter and Gemini.
-- **📍 Proximity-Biased Search**: Location search automatically prioritizes the closest local places to your current location (with tags like `1.2 km away` or `4.6 km away`), avoiding distant false matches.
-- **🛣️ 100% Real-Road Pedestrian Routing**: All routes strictly snap to and follow mapped OpenStreetMap footways, sidewalks, and residential roads. Automatically avoids bodies of water (like dams and lakes), expressways, and impassable barriers.
-- **🔄 Closed-Loop Doorstep Return**: Select a target distance (e.g., 5 km) and SafeStride generates a clean loop returning right to your start location.
-- **📈 Interactive Elevation & Grade Scrubber**: Scrub across your route to see real-time elevation changes, steepness grades, and route ascent.
-- **⚠️ Hazard Detection**: Identifies potential obstacles along your path (such as unlit street segments or missing sidewalks) before you head out.
-- **⏱️ Adaptive Pace & Energy Estimates**: Live duration and calorie estimates calculated across Easy (6:30), Steady (5:30), Tempo (4:45), and Fast (4:15) paces with uphill effort penalties.
-- **💾 Route Library**: Save and name your favorite routes to a Neon Serverless PostgreSQL database.
-- **🔐 Secure Authentication**: Integrated with Clerk for seamless user sign-in and profile management.
-- **🌓 Dark / Light Mode**: High-contrast dark basemap optimized for evening visibility, with a clean daytime mode.
+- **🤖 AI Route Assistant & Multi-Stage Spatial Reasoning**:
+  - Type what you want in plain English (e.g., *"5k recovery run at 8pm, keep it flat and lit"*, *"5k single way route avoiding busy streets"*, or click presets like *Night Safe*, *Hill Workout*, *Flat Recovery*, *5K Tempo*, and *5K One-Way*).
+  - Live 5-stage reasoning indicator showing candidate sampling, CBD/highway exclusion, sidewalk continuity auditing, and elevation calibration.
+  - Powered by OpenRouter (`google/gemini-2.0-flash-exp:free` / `openai/gpt-4o-mini`) with an intelligent local heuristic fallback.
+- **🧭 Multi-Candidate Pedestrian Corridor Sampling**:
+  - Evaluates up to **12 directional loop and one-way corridors** in parallel across OpenStreetMap pedestrian networks.
+  - Scores candidates by target distance accuracy, intersection density, highway/trunk avoidance, and greenway/park coverage, surfacing **Favored Corridors** and **Avoided Zones** directly in the UI.
+- **🔄 Closed-Loop & One-Way Modes**:
+  - Toggle seamlessly between **Closed-Loop Doorstep Return** (returns right to your start marker) and **One-Way Point-to-Point** routing—both for AI-generated routes and manual multi-waypoint plotting.
+  - Interactive waypoint markers (`S`, intermediate stops, `F`) with one-tap marker removal and automatic switching between AI and custom manual planning.
+- **📍 Proximity-Biased Location Search**:
+  - Location search automatically prioritizes the closest local places to your current coordinates (with distance tags like `1.2 km away`), avoiding distant false matches.
+- **🛣️ 100% Real-Road Pedestrian Routing**:
+  - Strictly snaps to and follows mapped OpenStreetMap footways, sidewalks, and residential streets via dual routing providers (`routing.openstreetmap.de/routed-foot` + OSRM pedestrian fallback).
+  - Automatically avoids bodies of water, expressways, and impassable barriers.
+- **📈 Interactive Elevation & Grade Scrubber**:
+  - Scrub across your route to inspect real-time elevation changes, steepness grades, and total ascent.
+- **⚠️ Hazard Detection & Safety Scoring**:
+  - Identifies potential obstacles along your path (such as unlit street segments, high-speed crossings, or missing sidewalks) and displays them as interactive map caution markers.
+- **⏱️ Adaptive Pace & Energy Estimates**:
+  - Live duration and calorie estimates calculated across Easy (`6:30/km`), Steady (`5:30/km`), Tempo (`4:45/km`), and Fast (`4:15/km`) paces with uphill effort penalties.
+- **💾 Route Library (Save, Load & Delete)**:
+  - Persist, reload, and manage your favorite routes in a **Neon Serverless PostgreSQL** database (with automatic in-memory fallback when running offline).
+- **🔐 Secure Authentication**:
+  - Integrated with Clerk (`@clerk/nextjs`) for seamless user sign-in and profile management.
+- **🌓 Dark / Light Mode**:
+  - High-contrast dark basemap optimized for evening visibility, plus a clean daytime mode.
 
 ---
 
@@ -27,9 +44,9 @@
  ├── web/                     # Next.js 15 (App Router) + React 19 Frontend & API
  │   ├── src/app/             # Landing page (/) & Planner (/planner)
  │   ├── src/components/      # MapCanvas, AI Assistant, Elevation Charts, Onboarding
- │   ├── src/server/routes/   # Hono API routes (/api/routes/plan, /api/saved-routes)
+ │   ├── src/server/routes/   # Hono API routes (/api/routes/plan, /api/ai/recommend, /api/saved-routes)
  │   ├── src/db/              # Drizzle ORM schema & Neon PostgreSQL connection
- │   └── src/store/           # Zustand state management
+ │   └── src/store/           # Zustand state management (map-store.ts)
  ├── pathfinder/              # Python FastAPI Pathfinding Microservice
  │   ├── app/astar.py         # Multi-Objective A* search algorithm
  │   ├── app/scoring.py       # Safety, elevation grade, and effort scoring
@@ -38,12 +55,23 @@
 ```
 
 ### Stack Highlights:
-- **Frontend**: Next.js 15, React 19, Tailwind CSS, MapLibre GL, Lucide Icons
-- **API Engine**: Hono running inside Next.js edge/node routes
+- **Frontend**: Next.js 15, React 19, Tailwind CSS, MapLibre GL, Lenis Smooth Scroll, Lucide Icons
+- **API Engine**: Hono running inside Next.js API routes with Zod validation
 - **Database**: Neon Serverless PostgreSQL with Drizzle ORM
 - **Authentication**: Clerk (`@clerk/nextjs`)
-- **Routing Engine**: Global OSRM Pedestrian (`/route/v1/foot/`) + Multi-Objective A* Pathfinder
-- **AI Engine**: OpenRouter API (`google/gemini-2.0-flash-exp:free` / `openai/gpt-4o-mini`)
+- **Routing Engine**: OSM `routed-foot` + OSRM Pedestrian (`/route/v1/foot/`) + Python Multi-Objective A* Pathfinder
+- **AI Engine**: OpenRouter API (`google/gemini-2.0-flash-exp:free` / `openai/gpt-4o-mini`) + Context-Aware Heuristic Engine
+
+---
+
+## 🔌 API Overview
+
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/api/routes/plan` | `POST` | Computes a loop or point-to-point pedestrian route with elevation profile, safety score, hazards, and corridor metadata. |
+| `/api/ai/recommend` | `POST` | Translates natural-language runner prompts into optimal distance, effort tolerance, safety strictness, and loop/one-way settings. |
+| `/api/saved-routes` | `GET` / `POST` | Lists or saves a user's route to Neon PostgreSQL. |
+| `/api/saved-routes/:id` | `DELETE` | Deletes a saved route by ID for the authenticated user. |
 
 ---
 

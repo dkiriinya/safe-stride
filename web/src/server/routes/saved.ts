@@ -2,24 +2,13 @@ import { Hono } from 'hono';
 import { getAuth } from '@clerk/nextjs/server';
 import { getDb } from '@/db/client';
 import { savedRoutes } from '@/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import crypto from 'crypto';
 
 export const savedRoute = new Hono();
 
 // In-memory fallback if Neon DATABASE_URL is not yet connected
-const inMemorySavedRoutes: any[] = [
-  {
-    id: '00000000-0000-0000-0000-000000000001',
-    clerkUserId: 'demo-user',
-    name: 'Morningside Loop 8.2k',
-    distanceKm: 8.26,
-    elevationGainM: 193,
-    effortTolerance: 0.6,
-    safetyStrictness: 0.85,
-    createdAt: new Date().toISOString(),
-  },
-];
+const inMemorySavedRoutes: any[] = [];
 
 savedRoute.get('/', async (c) => {
   let userId = 'demo-user';
@@ -85,4 +74,33 @@ savedRoute.post('/', async (c) => {
 
   inMemorySavedRoutes.unshift(newEntry);
   return c.json({ success: true, route: newEntry });
+});
+
+savedRoute.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+  let userId = 'demo-user';
+  try {
+    const auth = getAuth(c.req.raw as any);
+    if (auth?.userId) userId = auth.userId;
+  } catch {
+    // Clerk fallback
+  }
+
+  const db = getDb();
+  if (db) {
+    try {
+      await db
+        .delete(savedRoutes)
+        .where(and(eq(savedRoutes.id, id), eq(savedRoutes.clerkUserId, userId)));
+      return c.json({ success: true });
+    } catch (err: any) {
+      console.error('Failed to delete saved route from Neon:', err);
+    }
+  }
+
+  const idx = inMemorySavedRoutes.findIndex((r) => r.id === id);
+  if (idx !== -1) {
+    inMemorySavedRoutes.splice(idx, 1);
+  }
+  return c.json({ success: true });
 });

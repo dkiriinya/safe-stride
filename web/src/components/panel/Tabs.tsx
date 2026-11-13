@@ -13,6 +13,7 @@ export const Tabs: React.FC<TabsProps> = ({ activeTab, onChange }) => {
     { key: 'summary', label: 'SUMMARY' },
     { key: 'stats', label: 'STATS' },
     { key: 'charts', label: 'CHARTS' },
+    { key: 'saved', label: 'SAVED' },
   ];
 
   return (

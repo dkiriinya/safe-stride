@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { RouteResponse, ElevationSample, Hazard, GeoJSONFeature } from '@/contracts/route';
 
-export type TabKey = 'summary' | 'stats' | 'charts';
+export type TabKey = 'summary' | 'stats' | 'charts' | 'saved';
 
 interface MapState {
   // Required by architectural guidelines
@@ -32,6 +32,8 @@ interface MapState {
   errorMessage: string | null;
   activeTab: TabKey;
   activeHazardId: string | null;
+  isAiRoute: boolean;
+  setIsAiRoute: (val: boolean) => void;
 
   // Actions
   setWaypoints: (waypoints: [number, number][]) => void;
@@ -97,14 +99,17 @@ export const useMapStore = create<MapState>((set, get) => ({
   highContrast: false,
   setWheelchairAccessible: (val) => {
     set({ wheelchairAccessible: val });
-    get().fetchRoute();
+    const { waypoints, isAiRoute } = get();
+    if (waypoints.length >= 2 || (isAiRoute && waypoints.length >= 1)) {
+      get().fetchRoute();
+    }
   },
   setHighContrast: (val) => set({ highContrast: val }),
 
   speakRouteSummary: () => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const { distanceKm, estDurationMin, elevationGainM, hazards, wheelchairAccessible, userLocationName } = get();
+    const { distanceKm, estDurationMin, elevationGainM, hazards, wheelchairAccessible } = get();
     if (distanceKm <= 0) {
       const u = new SpeechSynthesisUtterance('No route planned yet. Choose a start location to plan your route.');
       window.speechSynthesis.speak(u);
@@ -132,7 +137,6 @@ export const useMapStore = create<MapState>((set, get) => ({
     set({
       userLocation: coords,
       userLocationName: locName,
-      waypoints: [coords],
       flyToLocation: [coords[1], coords[0]],
     });
     if (typeof window !== 'undefined') {
@@ -143,15 +147,14 @@ export const useMapStore = create<MapState>((set, get) => ({
         );
       } catch {}
     }
-    if (get().isRoundTrip) {
-      get().fetchRoute();
-    }
   },
 
   isLoadingRoute: false,
   errorMessage: null,
   activeTab: 'summary',
   activeHazardId: null,
+  isAiRoute: false,
+  setIsAiRoute: (val) => set({ isAiRoute: val }),
 
   isOnboardingOpen: false,
   setIsOnboardingOpen: (open) => set({ isOnboardingOpen: open }),
@@ -177,26 +180,21 @@ export const useMapStore = create<MapState>((set, get) => ({
       targetDistanceKm: distanceKm,
       safetyStrictness,
       effortTolerance,
-      isRoundTrip: true,
       isOnboardingOpen: false,
     };
 
     if (startCoords) {
       updates.userLocation = startCoords;
       updates.userLocationName = 'Start Location';
-      updates.waypoints = [startCoords];
       updates.flyToLocation = [startCoords[1], startCoords[0]];
     }
 
     set(updates);
-    if (get().waypoints.length >= 1) {
-      get().fetchRoute();
-    }
   },
 
   setWaypoints: (waypoints) => {
-    set({ waypoints });
-    if (waypoints.length >= 2 || (get().isRoundTrip && waypoints.length >= 1)) {
+    set({ waypoints, isAiRoute: false });
+    if (waypoints.length >= 2) {
       get().fetchRoute();
     } else {
       get().resetRoute();
@@ -206,16 +204,18 @@ export const useMapStore = create<MapState>((set, get) => ({
   addWaypoint: (point) => {
     const current = get().waypoints;
     const nextWaypoints = [...current, point];
-    set({ waypoints: nextWaypoints });
-    if (nextWaypoints.length >= 2 || (get().isRoundTrip && nextWaypoints.length >= 1)) {
+    set({ waypoints: nextWaypoints, isAiRoute: false });
+    if (nextWaypoints.length >= 2) {
       get().fetchRoute();
+    } else {
+      get().resetRoute();
     }
   },
 
   removeWaypoint: (index) => {
     const next = get().waypoints.filter((_, idx) => idx !== index);
-    set({ waypoints: next });
-    if (next.length >= 2 || (get().isRoundTrip && next.length >= 1)) {
+    set({ waypoints: next, isAiRoute: false });
+    if (next.length >= 2) {
       get().fetchRoute();
     } else {
       get().resetRoute();
@@ -226,8 +226,8 @@ export const useMapStore = create<MapState>((set, get) => ({
     const current = get().waypoints;
     if (current.length === 0) return;
     const next = current.slice(0, -1);
-    set({ waypoints: next });
-    if (next.length >= 2 || (get().isRoundTrip && next.length >= 1)) {
+    set({ waypoints: next, isAiRoute: false });
+    if (next.length >= 2) {
       get().fetchRoute();
     } else {
       get().resetRoute();
@@ -237,6 +237,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   clearWaypoints: () => {
     set({
       waypoints: [],
+      isAiRoute: false,
       activeRoute: null,
       elevationProfile: [],
       hoveredDistance: null,
@@ -254,7 +255,8 @@ export const useMapStore = create<MapState>((set, get) => ({
   setTargetDistanceKm: (val) => set({ targetDistanceKm: val }),
   setIsRoundTrip: (val) => {
     set({ isRoundTrip: val });
-    if (get().waypoints.length >= 1) {
+    const { waypoints, isAiRoute } = get();
+    if (waypoints.length >= 2 || (isAiRoute && waypoints.length >= 1)) {
       get().fetchRoute();
     }
   },
@@ -270,9 +272,9 @@ export const useMapStore = create<MapState>((set, get) => ({
   setActiveHazardId: (id) => set({ activeHazardId: id }),
 
   fetchRoute: async () => {
-    const { waypoints, effortTolerance, safetyStrictness, isRoundTrip, targetDistanceKm, userPaceMinPerKm, wheelchairAccessible } = get();
+    const { waypoints, isAiRoute, effortTolerance, safetyStrictness, isRoundTrip, targetDistanceKm, userPaceMinPerKm, wheelchairAccessible } = get();
     if (waypoints.length === 0) return;
-    if (!isRoundTrip && waypoints.length < 2) return;
+    if (!isAiRoute && waypoints.length < 2) return;
 
     set({ isLoadingRoute: true, errorMessage: null });
 

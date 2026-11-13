@@ -8,6 +8,7 @@ const AIRecommendRequestSchema = z.object({
   prompt: z.string().optional().default(''),
   currentTime: z.string().optional(),
   currentLocation: z.tuple([z.number(), z.number()]).optional(),
+  preferredIsRoundTrip: z.boolean().optional(),
   currentStats: z
     .object({
       distanceKm: z.number().optional(),
@@ -34,6 +35,8 @@ aiRoute.post('/recommend', zValidator('json', AIRecommendRequestSchema), async (
   const geminiKey = process.env.GEMINI_API_KEY || '';
   const userPrompt = body.prompt.trim();
   const timeStr = body.currentTime || new Date().toLocaleTimeString();
+  const defaultIsRoundTrip =
+    typeof body.preferredIsRoundTrip === 'boolean' ? body.preferredIsRoundTrip : true;
 
   const systemInstructions = `You are SafeStride's AI Running Coach and Urban Route Planner.
 Your role is to translate runner requests, time of day, and goals into exact parameters for SafeStride's Multi-Objective A* routing engine.
@@ -47,12 +50,12 @@ Routing Parameters:
    - 0.85 - 0.98: Strict safety. Requires lit streets and sidewalks (crucial for evening/night runs).
    - 0.50 - 0.80: Balanced urban safety for daytime.
 3. targetDistanceKm: Number between 1.0 and 42.2 km.
-4. isRoundTrip: boolean (default true for loop courses returning to the runner's start point).
+4. isRoundTrip: boolean — set to false if the user asks for a single-way, one-way, point-to-point, linear, or non-loop route; set to true for a loop or round-trip returning to the start point. If the user does not specify, default to ${defaultIsRoundTrip}.
 
 NAMING AND LANGUAGE RULES:
 - Use clear, direct, and straightforward language.
 - DO NOT use poetic or ambiguous names (such as "Evening Glow", "Moonlit Whisper", "Sunburst Journey").
-- Use descriptive titles like "6.0 km Safe Evening Loop", "5.0 km Flat Recovery Route", "8.0 km Hill Training Route".
+- Use descriptive titles like "6.0 km Safe Evening Loop", "5.0 km Flat One-Way Route", "8.0 km Hill Training Route".
 
 Return ONLY a valid JSON object matching this schema:
 {
@@ -110,7 +113,7 @@ Current Stats: ${JSON.stringify(body.currentStats || {})}`;
               targetDistanceKm: Number(parsed.targetDistanceKm) || 5.0,
               effortTolerance: Math.min(0.95, Math.max(0.05, Number(parsed.effortTolerance) || 0.6)),
               safetyStrictness: Math.min(0.98, Math.max(0.10, Number(parsed.safetyStrictness) || 0.85)),
-              isRoundTrip: typeof parsed.isRoundTrip === 'boolean' ? parsed.isRoundTrip : true,
+              isRoundTrip: typeof parsed.isRoundTrip === 'boolean' ? parsed.isRoundTrip : defaultIsRoundTrip,
               coachingAdvice: parsed.coachingAdvice || 'Maintain steady rhythm and stay mindful of road conditions.',
               provider: 'openrouter',
             };
@@ -159,7 +162,7 @@ Current Stats: ${JSON.stringify(body.currentStats || {})}`;
             targetDistanceKm: Number(parsed.targetDistanceKm) || 5.0,
             effortTolerance: Math.min(0.95, Math.max(0.05, Number(parsed.effortTolerance) || 0.6)),
             safetyStrictness: Math.min(0.98, Math.max(0.10, Number(parsed.safetyStrictness) || 0.85)),
-            isRoundTrip: typeof parsed.isRoundTrip === 'boolean' ? parsed.isRoundTrip : true,
+            isRoundTrip: typeof parsed.isRoundTrip === 'boolean' ? parsed.isRoundTrip : defaultIsRoundTrip,
             coachingAdvice: parsed.coachingAdvice || 'Maintain steady rhythm and stay mindful of road conditions.',
             provider: 'gemini',
           };
@@ -172,33 +175,47 @@ Current Stats: ${JSON.stringify(body.currentStats || {})}`;
   }
 
   // 3. Smart Heuristic Fallback
-  const isNight = timeStr.includes('PM') || timeStr.includes('pm') || timeStr.includes('19:') || timeStr.includes('20:') || timeStr.includes('21:') || timeStr.includes('22:');
   const lowerPrompt = userPrompt.toLowerCase();
+  const explicitDaytime = /\b(morning|afternoon|daytime|day|sunrise|noon|lunch)\b/i.test(userPrompt);
+  const explicitNight = /\b(night|evening|dark|sunset|dusk|late)\b/i.test(userPrompt);
+  const clockIsNight = timeStr.includes('PM') || timeStr.includes('pm') || timeStr.includes('19:') || timeStr.includes('20:') || timeStr.includes('21:') || timeStr.includes('22:');
+  const isNight = explicitNight ? true : explicitDaytime ? false : clockIsNight;
+
+  const explicitLowTraffic = /\b(traffic|quiet|calm|safe|sidewalk|lit|lighting|pedestrian)\b/i.test(userPrompt);
+  const explicitOneWay = /\b(one[\s-]?way|single[\s-]?way|point[\s-]?to[\s-]?point|p2p|linear|one direction|no loop|not round)\b/i.test(userPrompt);
+  const explicitRoundTrip = /\b(round[\s-]?trip|loop|circular|back to start|return)\b/i.test(userPrompt);
+  const isRoundTrip = explicitOneWay ? false : explicitRoundTrip ? true : defaultIsRoundTrip;
+  const routeKindLabel = isRoundTrip ? 'Loop' : 'One-Way Route';
 
   let targetDistanceKm = 5.0;
+  const distMatch = userPrompt.match(/(\d+(?:\.\d+)?)\s*(?:k|km)\b/i);
+  if (distMatch) {
+    const parsedDist = parseFloat(distMatch[1]);
+    if (!Number.isNaN(parsedDist) && parsedDist >= 1.0 && parsedDist <= 42.2) {
+      targetDistanceKm = parsedDist;
+    }
+  }
+
   let effortTolerance = 0.55;
-  let safetyStrictness = isNight ? 0.95 : 0.80;
-  let title = isNight ? '5.0 km Safe Evening Loop' : '5.0 km Balanced Urban Loop';
+  let safetyStrictness = isNight || explicitLowTraffic ? 0.95 : 0.80;
+  const timeLabel = isNight ? 'Safe Evening' : explicitLowTraffic ? 'Low-Traffic' : 'Balanced Urban';
+  let title = `${targetDistanceKm.toFixed(1)} km ${timeLabel} ${routeKindLabel}`;
   let reasoning = isNight
-    ? 'High safety strictness applied to prioritize street lighting and sidewalks for evening running.'
-    : 'Balanced elevation and safety settings for steady urban training.';
+    ? `High safety strictness applied to prioritize street lighting and sidewalks for an evening ${isRoundTrip ? 'loop' : 'one-way route'}.`
+    : explicitLowTraffic
+    ? `High safety strictness applied to favor quieter, low-traffic streets and dedicated sidewalks on this ${isRoundTrip ? 'loop' : 'one-way route'}.`
+    : `Balanced elevation and safety settings for a steady ${isRoundTrip ? 'round-trip loop' : 'single-way route'}.`;
 
   if (lowerPrompt.includes('recovery') || lowerPrompt.includes('easy') || lowerPrompt.includes('flat')) {
-    title = '4.0 km Flat Recovery Route';
+    if (!distMatch) targetDistanceKm = 4.0;
+    title = `${targetDistanceKm.toFixed(1)} km Flat Recovery ${routeKindLabel}`;
     effortTolerance = 0.15;
-    targetDistanceKm = 4.0;
-    reasoning = 'Heavy hill penalty applied to keep gradients flat and reduce muscle fatigue.';
+    reasoning = `Heavy hill penalty applied to keep gradients flat on this ${isRoundTrip ? 'loop' : 'one-way route'}.`;
   } else if (lowerPrompt.includes('hill') || lowerPrompt.includes('climb')) {
-    title = '8.0 km Hill Training Route';
+    if (!distMatch) targetDistanceKm = 8.0;
+    title = `${targetDistanceKm.toFixed(1)} km Hill Training ${routeKindLabel}`;
     effortTolerance = 0.85;
-    targetDistanceKm = 8.0;
-    reasoning = 'Hill penalty relaxed to route through rewarding elevation gains.';
-  } else if (lowerPrompt.includes('10k') || lowerPrompt.includes('10 km')) {
-    targetDistanceKm = 10.0;
-    title = '10.0 km Urban Training Loop';
-  } else if (lowerPrompt.includes('6k') || lowerPrompt.includes('6 km')) {
-    targetDistanceKm = 6.0;
-    title = isNight ? '6.0 km Safe Evening Loop' : '6.0 km Urban Route';
+    reasoning = `Hill penalty relaxed to route through rewarding elevation gains on this ${isRoundTrip ? 'loop' : 'one-way route'}.`;
   }
 
   const result: AIRecommendationResult = {
@@ -207,7 +224,7 @@ Current Stats: ${JSON.stringify(body.currentStats || {})}`;
     targetDistanceKm,
     effortTolerance,
     safetyStrictness,
-    isRoundTrip: true,
+    isRoundTrip,
     coachingAdvice: 'Keep your stride light and stay alert at street crossings.',
     provider: 'heuristic',
   };

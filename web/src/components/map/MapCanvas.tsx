@@ -135,8 +135,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ theme = 'dark' }) => {
       setShowSearchResults(false);
       const clicked: [number, number] = [e.lngLat.lat, e.lngLat.lng];
       const state = useMapStore.getState();
-      if (state.waypoints.length <= 1 && state.isRoundTrip) {
-        state.setUserLocation(clicked, 'Selected Map Location');
+      if (state.isAiRoute) {
+        state.setWaypoints([clicked]);
       } else {
         state.addWaypoint(clicked);
       }
@@ -175,7 +175,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ theme = 'dark' }) => {
 
     const source = map.getSource('route-source') as maplibregl.GeoJSONSource | undefined;
     if (source) {
-      if (activeRoute && (waypoints.length >= 2 || (isRoundTrip && waypoints.length >= 1))) {
+      if (activeRoute && waypoints.length >= 1) {
         source.setData({
           type: 'FeatureCollection',
           features: [activeRoute as any],
@@ -220,6 +220,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ theme = 'dark' }) => {
       el.innerHTML = `<span class="text-[11px] font-bold leading-none">${
         isStart ? 'S' : isEnd ? 'F' : idx
       }</span>`;
+      el.title = isStart ? 'Tap to remove Start' : isEnd ? 'Tap to remove Finish' : `Tap to remove Stop ${idx}`;
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        useMapStore.getState().removeWaypoint(idx);
+      });
 
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat([lng, lat])
@@ -227,7 +232,26 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ theme = 'dark' }) => {
 
       waypointMarkersRef.current.push(marker);
     });
-  }, [waypoints]);
+
+    // For auto-generated one-way routes (1 start waypoint, !isRoundTrip), show Finish (F) at route end
+    const routeCoords = activeRoute?.geometry?.coordinates;
+    if (!isRoundTrip && waypoints.length === 1 && routeCoords && routeCoords.length > 1) {
+      const [endLng, endLat] = routeCoords[routeCoords.length - 1];
+      const endEl = document.createElement('div');
+      endEl.className =
+        'flex items-center justify-center w-7 h-7 rounded-full shadow-xl cursor-pointer transform -translate-x-1/2 -translate-y-1/2 border-2 border-white transition-all hover:scale-125 bg-rose-500 text-white ring-4 ring-rose-500/30';
+      endEl.innerHTML = '<span class="text-[11px] font-bold leading-none">F</span>';
+      endEl.title = 'Generated Finish (tap map anywhere to set custom Finish)';
+      endEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+
+      const endMarker = new maplibregl.Marker({ element: endEl })
+        .setLngLat([endLng, endLat])
+        .addTo(map);
+      waypointMarkersRef.current.push(endMarker);
+    }
+  }, [waypoints, activeRoute, isRoundTrip]);
 
   // Sync Hazard Markers
   useEffect(() => {
@@ -535,13 +559,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ theme = 'dark' }) => {
       {/* Floating Status & Instruction Banner */}
       <div className="absolute bottom-4 left-4 z-10 pointer-events-none">
         <div className="px-3.5 py-1.5 rounded-full bg-dark-surfaceSolid/90 backdrop-blur-glass border border-dark-border/60 text-xs font-ui text-dark-metricText shadow-lg flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${waypoints.length >= 2 ? 'bg-[#ccff00]' : 'bg-emerald-400 animate-pulse'}`} />
+          <div className={`w-2 h-2 rounded-full ${waypoints.length >= 2 || activeRoute ? 'bg-[#ccff00]' : 'bg-emerald-400 animate-pulse'}`} />
           <span>
             {waypoints.length === 0
               ? 'Click anywhere on the map to set Start (S)'
               : waypoints.length === 1
-              ? 'Click to set Finish (F) & calculate route'
-              : `${waypoints.length} waypoints • Click to add intermediate stops`}
+              ? activeRoute
+                ? 'AI route active • Click map to start a custom manual route'
+                : 'Start (S) set • Click map to set Finish (F) & calculate route'
+              : `${waypoints.length} waypoints • Tap a marker to remove or click map to add stops`}
           </span>
         </div>
       </div>

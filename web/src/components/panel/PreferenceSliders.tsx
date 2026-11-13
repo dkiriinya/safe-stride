@@ -6,6 +6,7 @@ import { Shield, Zap, RefreshCw, Navigation, Accessibility, Volume2, Eye } from 
 
 export const PreferenceSliders: React.FC = () => {
   const {
+    waypoints,
     effortTolerance,
     safetyStrictness,
     isRoundTrip,
@@ -33,7 +34,6 @@ export const PreferenceSliders: React.FC = () => {
           <button
             onClick={() => {
               setIsRoundTrip(false);
-              fetchRoute();
             }}
             className={`px-3 py-1.5 rounded-lg text-xs font-ui font-medium transition-all ${
               !isRoundTrip
@@ -46,7 +46,6 @@ export const PreferenceSliders: React.FC = () => {
           <button
             onClick={() => {
               setIsRoundTrip(true);
-              fetchRoute();
             }}
             className={`px-3 py-1.5 rounded-lg text-xs font-ui font-medium transition-all ${
               isRoundTrip
@@ -59,12 +58,12 @@ export const PreferenceSliders: React.FC = () => {
         </div>
       </div>
 
-      {/* Target Distance Slider (When in Round Trip / Loop mode) */}
-      {isRoundTrip && (
+      {/* Target Distance Slider (Round Trip or AI/Auto One-Way with single start point) */}
+      {(isRoundTrip || waypoints.length <= 1) && (
         <div className="p-3 rounded-2xl bg-dark-surface/60 border border-dark-border/40">
           <div className="flex items-center justify-between mb-1">
             <span className="font-ui text-xs font-medium text-dark-labelText">
-              Target Loop Distance
+              {isRoundTrip ? 'Target Loop Distance' : 'Target One-Way Distance'}
             </span>
             <span className="font-display font-bold text-xs text-dark-accent">
               {(targetDistanceKm || 8.0).toFixed(1)} km
